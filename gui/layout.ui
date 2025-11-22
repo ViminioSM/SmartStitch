@@ -374,9 +374,9 @@
         </item>
        </layout>
       </widget>
-      <widget class="QWidget" name="advancedTab">
+      <widget class="QWidget" name="detectorTab">
        <attribute name="title">
-        <string>Advanced</string>
+        <string>Detector</string>
        </attribute>
        <layout class="QVBoxLayout" name="dverticalLayout_1">
         <property name="spacing">
@@ -561,6 +561,41 @@
          </widget>
         </item>
         <item>
+         <spacer name="verticalSpacer_2">
+          <property name="orientation">
+           <enum>Qt::Vertical</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>20</width>
+            <height>40</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="profileTab">
+       <attribute name="title">
+        <string>Profile</string>
+       </attribute>
+       <layout class="QVBoxLayout" name="profileVerticalLayout">
+        <property name="spacing">
+         <number>4</number>
+        </property>
+        <property name="leftMargin">
+         <number>6</number>
+        </property>
+        <property name="topMargin">
+         <number>6</number>
+        </property>
+        <property name="rightMargin">
+         <number>6</number>
+        </property>
+        <property name="bottomMargin">
+         <number>6</number>
+        </property>
+        <item>
          <widget class="QGroupBox" name="profileGroupBox">
           <property name="title">
            <string>Configuration Profile Settings</string>
@@ -653,7 +688,7 @@
          </widget>
         </item>
         <item>
-         <spacer name="verticalSpacer_2">
+         <spacer name="profileVerticalSpacer">
           <property name="orientation">
            <enum>Qt::Vertical</enum>
           </property>

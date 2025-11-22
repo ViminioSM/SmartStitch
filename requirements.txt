@@ -1,0 +1,8 @@
+natsort
+pillow
+numpy
+pyside6
+pyqtdarktheme
+psd-tools
+pyinstaller
+backports.tarfile

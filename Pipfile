@@ -7,8 +7,8 @@ name = "pypi"
 format = "python -m scripts.formatter"
 console = "python -m SmartStitchConsole"
 gui = "python -m SmartStitchGUI"
-build="pyinstaller Build.spec"
-build-no-icon="pyinstaller BuildNoIcon.spec"
+build = "python -m scripts.build"
+build-no-icon = "python -m scripts.build"
 
 [packages]
 natsort = "*"
@@ -25,4 +25,4 @@ isort = "*"
 pyinstaller = "*"
 
 [requires]
-python_version = "3.10"
+python_version = "3.11"

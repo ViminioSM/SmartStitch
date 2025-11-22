@@ -208,14 +208,23 @@ python SmartStitchConsole.py -i "Review me" -sh 7500 -t ".png"
 ## How to build/compile your own GUI Version?
 
 ### How to compile GUI package (For Windows Users)
-1. Install python edition suitable for your machine. (Python 3.10+ is required)
-2. Run the ```setup.py``` either by double clicking it or using the terminal ```python setup.py```
-3. From the terminal, navigate to the directory where the source code was unzipped and run: ```pipenv run build```
+1. Install a Python version suitable for your machine. (Python 3.11 is recommended)
+2. Upgrade pip (optional, mas recomendado):
+   - ```python -m pip install --upgrade pip```
+3. Install the required dependencies:
+   - ```pip install -r requirements.txt```
+4. From the terminal, navigate to the directory where the source code was unzipped and run:
+   - ```python -m scripts.build```
+5. The compiled application will be available under the ```dist/SmartStitch``` folder as ```SmartStitch.exe```.
 
 ### How to compile GUI package (For Mac & Linux Users)
-1. Install python edition suitable for your machine. (Python 3.10+ is required)
-2. Run the ```setup.py``` either by double clicking it or using the terminal ```python setup.py```
-3. From the terminal, navigate to the directory where the source code was unzipped and run: ```pipenv run build-no-icon```
+1. Install a Python version suitable for your machine. (Python 3.11 is recommended)
+2. Upgrade pip (optional, mas recomendado):
+   - ```python -m pip install --upgrade pip``` or ```python3 -m pip install --upgrade pip```
+3. Install the required dependencies:
+   - ```pip install -r requirements.txt```
+4. From the terminal, navigate to the directory where the source code was unzipped and run:
+   - ```python -m scripts.build``` or ```python3 -m scripts.build```
 
 - The output compiled application will not need python installed to run, but will only run on the platform it was built/compiled on.
 - Mac and Linux Compiling was not tested by me, so uh... good luck xD

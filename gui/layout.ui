@@ -557,6 +557,13 @@
              </layout>
             </widget>
            </item>
+           <item>
+            <widget class="QPushButton" name="detectorHelpButton">
+             <property name="text">
+              <string>Detector Help</string>
+             </property>
+            </widget>
+           </item>
           </layout>
          </widget>
         </item>
@@ -747,6 +754,13 @@
             <widget class="QCheckBox" name="runProcessCheckbox">
              <property name="text">
               <string>Run post process after stitching process is complete</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QCheckBox" name="runComicZipCheckbox">
+             <property name="text">
+              <string>Run ComicZip after post process (zip stitched output)</string>
              </property>
             </widget>
            </item>

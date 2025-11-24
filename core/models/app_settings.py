@@ -18,6 +18,7 @@ class AppSettings:
         self.run_postprocess: bool = False
         self.postprocess_app: str = ""
         self.postprocess_args: str = ""
+        self.run_comiczip: bool = False
         self.last_browse_location: str = ""
 
         if json_dict is not None:

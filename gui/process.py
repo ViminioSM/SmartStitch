@@ -1,4 +1,5 @@
 import gc
+import os
 from time import time
 
 from core.detectors import select_detector
@@ -30,6 +31,8 @@ class GuiStitchProcess:
         img_manipulator = ImageManipulator()
         postprocess_runner = PostProcessRunner()
         detector = select_detector(detection_type=settings.load("detector_type"))
+        project_root = os.path.dirname(os.path.dirname(__file__))
+        comiczip_script = os.path.join(project_root, "scripts", "comiczip.py")
         input_path = kwargs.get("input_path", "")
         output_path = kwargs.get("input_path", "")
         status_func = kwargs.get("status_func", print)
@@ -148,6 +151,20 @@ class GuiStitchProcess:
                 )
                 percentage += step_percentages.get("postprocess") / (
                     float(input_dirs_count) * float(img_count)
+                )
+            if settings.load("run_comiczip"):
+                status_func(
+                    percentage,
+                    'Working - [{iteration}/{count}] Running ComicZip on output files'.format(
+                        iteration=dir_iteration,
+                        count=input_dirs_count,
+                    ),
+                )
+                postprocess_runner.run(
+                    workdirectory=dir,
+                    postprocess_app="python",
+                    postprocess_args=f"{comiczip_script} -i [stitched] -o [processed]",
+                    console_func=console_func,
                 )
             dir_iteration += 1
         end_time = time()

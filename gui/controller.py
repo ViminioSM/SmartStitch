@@ -3,7 +3,7 @@ import os
 from PySide6.QtCore import QThread, Signal
 from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtUiTools import QUiLoader
-from PySide6.QtWidgets import QDialog, QFileDialog
+from PySide6.QtWidgets import QDialog, QFileDialog, QMessageBox
 
 from assets.SmartStitchLogo import icon
 from core.services import SettingsHandler
@@ -73,6 +73,7 @@ def on_load(load_profiles=True):
     MainWindow.scanStepField.setValue(settings.load("scan_step"))
     MainWindow.ignoreMarginField.setValue(settings.load("ignorable_pixels"))
     MainWindow.runProcessCheckbox.setChecked(settings.load("run_postprocess"))
+    MainWindow.runComicZipCheckbox.setChecked(settings.load("run_comiczip"))
     MainWindow.postProcessAppField.setText(settings.load("postprocess_app"))
     MainWindow.postProcessArgsField.setText(settings.load("postprocess_args"))
     output_type_changed(False)
@@ -105,6 +106,8 @@ def bind_signals():
     MainWindow.addProfileButton.clicked.connect(add_profile)
     MainWindow.removeProfileButton.clicked.connect(remove_profile)
     MainWindow.runProcessCheckbox.stateChanged.connect(run_postprocess_changed)
+    MainWindow.runComicZipCheckbox.stateChanged.connect(run_comiczip_changed)
+    MainWindow.detectorHelpButton.clicked.connect(show_detector_help)
     MainWindow.browsePostProcessAppButton.clicked.connect(browse_postprocess_app)
     MainWindow.postProcessAppField.textChanged.connect(postprocess_app_changed)
     MainWindow.postProcessArgsField.textChanged.connect(postprocess_args_changed)
@@ -234,6 +237,43 @@ def remove_profile():
 
 def run_postprocess_changed():
     settings.save("run_postprocess", MainWindow.runProcessCheckbox.isChecked())
+
+
+def run_comiczip_changed():
+    settings.save("run_comiczip", MainWindow.runComicZipCheckbox.isChecked())
+
+
+def show_detector_help():
+    QMessageBox.information(
+        MainWindow,
+        "Detector Settings Help",
+        (
+            "Detector Type:\n"
+            "- Direct Slicing: cuts pages at fixed intervals equal to the Rough Output Height,\n"
+            "  ignoring pixel content. This is the fastest mode, but it may cut speech bubbles\n"
+            "  or SFX.\n\n"
+            "- Smart Pixel Comparison: analyzes pixels around the target cut height\n"
+            "  and tries to avoid lines with abrupt color/value changes, reducing the chance\n"
+            "  of cutting text or SFX. It is slower, but usually produces better panel splits.\n\n"
+            "Object Detection Sensitivity [1-100%]:\n"
+            "- High values (90-100): the detector only accepts very homogeneous lines,\n"
+            "  minimizing cuts on important content, but producing panels with more varied\n"
+            "  heights.\n"
+            "- Medium/low values (20-50): the detector tolerates more pixel variation,\n"
+            "  which can make panels more uniform, but increases the risk of cutting\n"
+            "  speech bubbles/SFX.\n\n"
+            "Scan Line Step [1-25 px]:\n"
+            "- Controls how many pixels the scan line jumps when searching for the next\n"
+            "  candidate cut position after rejecting the current one. Small values (1-5)\n"
+            "  give dense scanning (more precise, slower); higher values (10-25) give faster,\n"
+            "  but less precise scanning.\n\n"
+            "Ignoreable Horizontal Margins [px]:\n"
+            "- Number of pixels ignored at the left/right edges of the image during detection.\n"
+            "  Useful when there are decorative frames or noise at the borders. This makes the\n"
+            "  detector focus on the inner area where panels and speech bubbles are.\n"
+            "  Avoid very large values relative to the image width."
+        ),
+    )
 
 
 def browse_postprocess_app():

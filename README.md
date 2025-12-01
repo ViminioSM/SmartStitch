@@ -29,11 +29,48 @@
 </div>
 
 ## What is SmartStitch?
-A small yet powerful program for stitching together webtoons/manhwa/manhua raws then slicing them down to the whatever size you wish for.
+SmartStitch is a small yet powerful tool for **stitching long webtoon / manhwa / manhua pages** and then **cutting them into panels** suitable for readers and editors.
 
-The smart part of the name comes from the fact that it uses some simple pixel calculation to stop itself from cutting/slicing through sfx or speech or drawings. it making life much easier for the team working on those raw images. [Both CLRD and TS will thank you a lot].
+The "smart" part comes from a pixel-based detector that tries to avoid cutting through text, SFX or important artwork. It makes life much easier for the team working on those raws – both CLRD and TS will thank you.
 
-*It's not fancy, and does not use AI, but it's fast, robust, simple and more importantly works for me. (So i decided to share it with you!)*
+*It's not fancy, and does not use AI, but it's fast, robust, simple and – more importantly – it works. (So I decided to share it!)*
+
+## Key Features (GUI)
+
+- **Smart panel detection**
+  - Combines multiple input images vertically and uses pixel comparison to choose safe cut positions.
+  - Optional direct slicing mode for fixed-height panels.
+
+- **Multi-tab GUI workflow**
+  - **Basic**: input/output, file format, rough panel height.
+  - **Advanced**: PSD-oriented workflows (two folders, PSD source).
+  - **Detector**: tuning for detection sensitivity, scan step, margins.
+  - **Profile**: save and switch between configuration profiles.
+  - **Post Process**: run an external tool (e.g. waifu2x) and optionally ComicZip.
+
+- **Advanced PSD Merge (GUI Only)**
+  - **Two folders (Normal + Edited)**: merge RAW + edited pages into 2‑layer PSDs.
+  - **PSD source (folder of PSDs)**: full pipeline based on PSD/PSB input, generating Edited, Original and final Merged PSD folders.
+
+- **External post-process integration**
+  - Runs any command-line tool after stitching (e.g. waifu2x, imagemagick).
+  - Supports placeholders like `[stitched]` and `[processed]` in arguments.
+
+- **ComicZip integration**
+  - Optional ComicZip run to zip stitched / processed output.
+  - In the Advanced PSD source workflow, ComicZip runs **only on the final [Merged] folder**.
+
+- **Quality & format options**
+  - PNG/JPG/WebP/BMP/PSD/TIFF/TGA output.
+  - Lossy quality slider for JPG/WebP.
+  - Width enforcement modes (none, automatic, custom).
+
+- **Convenience features**
+  - Drag‑and‑drop of folders into all input/output directory fields.
+  - Multiple **profiles** for different projects / resolutions.
+  - Robust logging system for easier bug reports.
+
+The console version exposes the same core stitching/detection logic via command‑line flags, for batch or headless workflows.
 
 
 ## Screenshots
@@ -43,16 +80,19 @@ The smart part of the name comes from the fact that it uses some simple pixel ca
 <img alt="screenshot03" src="https://i.imgur.com/PuEX3zf.png">
 </div>
 
-## Basic Quick Get Started GUI Version
-1. Open the application.
-2. Browse to your raw folder.
-4. Select a the output file type. (Supported types: png, jpg, webp, bmp, psd, tiff, tga)
-3. Set the Rough Panel Height of the output files.
-5. Click start process.
-6. Done, Enjoy!
+## Basic Quick Get Started (GUI)
+1. Launch **SmartStitchGUI**.
+2. In the **Basic** tab:
+   - Set **Input Path** to your chapter folder.
+   - The **Output Path** will auto‑fill as `Input [stitched]` (you can change it).
+   - Choose **Output File Type** (png/jpg/webp/bmp/psd/tiff/tga).
+   - Set **Rough Output Height** for the target panel height.
+3. (Optional) In **Detector**, tune detection sensitivity / scan step / margins.
+4. (Optional) In **Post Process**, configure an external tool and/or ComicZip.
+5. Click **Start Process**.
 
-- Your file will be ordered the same way they are in your file explorer, so make sure everything is in order. (sort by name in file explorer)
-- You can explore the advanced settings after reading documentation to have more control on the output files.
+- Input files are processed in the same order as your file explorer (sort by name).
+- When you are comfortable with the basics, explore the **Advanced** and **Profile** tabs.
 
 ### How to launch the GUI Version (For Windows Users):
 1. Put the raws you wish to stitch in a folder
@@ -79,8 +119,30 @@ Please keep in mind that, if the issue is critical enough, it may require a copy
 
 You can also contact me at Discord if you don't want to use the GitHub Issue System. (MechTechnology#5466)
 
-# Documentation
+## Documentation
 Here is the complete documentation for the application, it is broken down into 4 sections, basic settings, advanced settings, how to build your own version, how to run the console version.
+
+## GUI Tabs Overview (Quick Reference)
+- **Basic**
+  - Input/Output folders, output file type, rough output height, width enforcement.
+  - This is where most users will spend their time.
+
+- **Advanced**
+  - Advanced PSD Merge workflows:
+    - **Two folders (Normal + Edited)** → merge RAW + edited images into 2‑layer PSDs.
+    - **PSD source (folder of PSDs)** → run Edited / Original / Merged pipeline starting from PSD/PSB.
+
+- **Detector**
+  - Configure detection type (Smart Pixel Comparison vs Direct Slicing).
+  - Sensitivity, scan line step, ignorable margins.
+
+- **Profile**
+  - Create and manage multiple named profiles.
+  - Switching profile updates all GUI settings instantly.
+
+- **Post Process**
+  - Configure an external app (e.g. waifu2x) and its arguments.
+  - Enable optional ComicZip run after post‑process.
 
 ## Basic Settings
 These are the required settings that all users should be mindful of.
@@ -151,6 +213,45 @@ For those working on various projects that require different stitching settings 
 
 This is setting is for convenience mainly for heavy users.
 
+### Advanced PSD Merge (GUI Only)
+The **Advanced** tab provides extra workflows focused on PSD-based editing, useful when you want to keep both the original RAW and an edited version together in a single PSD file.
+
+There are currently **two source types**:
+
+1. **Two folders (Normal + Edited)**
+   - Use when you already have two folders of **final images** (any supported format) with matching filenames:
+     - *Normal layer folder*: RAW or unedited pages.
+     - *Edited layer folder*: cleaned/edited pages.
+   - For every filename stem that exists in both folders (for example `001.png` and `001.jpg`):
+     - Creates a 2-layer PSD with:
+       - **"Normal"** layer at the bottom (RAW).
+       - **"Edited"** layer on top.
+   - The PSDs are written to the *Edited* folder (or to a custom output folder if you use the API).
+   - This mode **only merges** images into PSDs; it does **not** run ComicZip or any external post-process automatically.
+
+2. **PSD source (folder of PSDs)**
+   - Use when your input is a folder of **PSD/PSB files** (each file is a page or a big canvas with layers).
+   - You select a single *PSD source folder*; SmartStitch then runs a multi-step pipeline:
+     1. **Edited pass** → `&lt;folder&gt; [Edited]`
+        - Runs the standard stitching pipeline over the flattened PSDs.
+        - Respects all the usual Basic/Detector settings and the **Run post process** checkbox.
+        - If *Run post process* is enabled, your configured external tool runs on the **Edited** output.
+        - ComicZip is **disabled** in this pass.
+     2. **Original pass** → `&lt;folder&gt; [Original]`
+        - Loads **only the first layer** of each PSD (usually the background/original art).
+        - Uses the same stitching/detector configuration.
+        - Post-process and ComicZip are **both disabled** here.
+     3. **Merge pass** → `&lt;folder&gt; [Merged]`
+        - For every matching filename, creates a 2-layer PSD in the **[Merged]** folder:
+          - Bottom layer: **"Normal"** (from `[Original]`).
+          - Top layer: **"Edited"** (from `[Edited]`).
+        - If *Run ComicZip* is enabled, ComicZip is executed **only on the [Merged] folder**, producing the final archive.
+
+Additional notes for the Advanced workflows:
+
+- The Advanced pipeline can run **after** a Basic run (same session), or on its own if you only configure the Advanced tab.
+- Folder fields in Basic and Advanced accept **drag-and-drop** of directories directly from your file explorer.
+
 ### Post Process
 (GUI Only) With this option, one can set a specific console process to be fire on the output files of the application. For example, you can set it to fire waifu2x on the output files, so you can have the best raw processing experience. So how do we set that up,
   1. Navigate to the Post Process Tab
@@ -164,6 +265,43 @@ Of course you can use whatever version of waifu2x or process that you want, this
 <div align="center">
   <img alt="screenshot04" src="https://i.imgur.com/fZbP1sn.png">
 </div>
+
+### FAQ / Tips
+
+- **Q: When should I use *Two folders (Normal + Edited)* vs *PSD source*?**
+  - Use **Two folders** when you already exported final PNG/JPG/WebP/etc. into two folders with matching filenames:
+    - One folder for RAW/unprocessed pages.
+    - One folder for fully edited pages.
+    - SmartStitch will only create the 2‑layer PSDs.
+  - Use **PSD source (folder of PSDs)** when your source material is PSD/PSB files and you want SmartStitch to:
+    - Flatten them, stitch + slice them into Edited pages.
+    - Re‑run the stitch using only the first layer for Original pages.
+    - Finally merge those into Merged PSDs.
+
+- **Q: How exactly do Post Process and ComicZip interact with the Advanced PSD source mode?**
+  - Edited pass (`[Edited]`):
+    - **Respects** the *Run post process* checkbox.
+    - **Ignores** ComicZip (always disabled here).
+  - Original pass (`[Original]`):
+    - **Does not run** post process.
+    - **Does not run** ComicZip.
+  - Merged pass (`[Merged]`):
+    - **Does not run** post process.
+    - **Runs ComicZip only here** if *Run ComicZip* is enabled.
+
+- **Q: Example of waifu2x configuration?**
+  - Post process application path:
+    - `C:/waifu2x/waifu2x.exe`
+  - Post process arguments (example):
+    - `-i [stitched] -o [processed] -n 3 -s 1 -f jpg`
+  - `[stitched]` is replaced by the SmartStitch output folder.
+  - `[processed]` lets waifu2x write its own output in a clean separate folder.
+
+- **Q: Can I drag & drop folders into the GUI instead of browsing every time?**
+  - Yes. All folder path fields (Basic + Advanced + Post Process path) support drag‑and‑drop of directories from your file explorer.
+
+- **Q: The window says "Not Responding" while many PSDs are being created. Is it frozen?**
+  - The Advanced merge now periodically processes GUI events between PSD creations. You should still be able to move the window and see log lines while it works. If the OS temporarily shows "Not Responding" for extremely large jobs, give it a bit of time – the log and progress bar should continue updating.
 
 ## How to run the Console Version (For Windows, Mac, Linux Users)
 1. Download the source code zip file of the latest release (Found in the releases section in this github)

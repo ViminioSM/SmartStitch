@@ -1,43 +1,63 @@
 import os
+import shutil
 import sys
 from pathlib import Path
 
 
 def main() -> None:
+    """Build a clean, single-folder GUI package using PyInstaller.
+
+    This script keeps the repository tidy by:
+    - Using a dedicated work directory for PyInstaller artifacts.
+    - Cleaning that work directory after a successful build.
+    - Leaving only ``dist/SmartStitch`` as the final application folder.
+    """
+
     try:
         from PyInstaller.__main__ import run as pyinstaller_run
     except ImportError:  # pragma: no cover - defensive runtime check
-        print("PyInstaller is not installed. Install it with 'pip install pyinstaller'.")
+        print("[Build] PyInstaller is not installed. Install it with 'pip install pyinstaller'.")
         sys.exit(1)
 
     project_root = Path(__file__).resolve().parent.parent
-
     os.chdir(project_root)
 
     gui_entry = project_root / "SmartStitchGUI.py"
     if not gui_entry.exists():
-        print(f"Entry point not found: {gui_entry}")
+        print(f"[Build] Entry point not found: {gui_entry}")
         sys.exit(1)
 
     icon_path = project_root / "assets" / "SmartStitchLogo.ico"
     ui_path = project_root / "gui" / "layout.ui"
 
-    add_data_args: list[str] = []
+    dist_dir = project_root / "dist"
+    app_name = "SmartStitch"
+    app_dist_dir = dist_dir / app_name
 
+    # Isolate PyInstaller's temporary artifacts under build/pyinstaller
+    work_dir = project_root / "build" / "pyinstaller"
+    work_dir.mkdir(parents=True, exist_ok=True)
+
+    add_data_args: list[str] = []
     if icon_path.exists():
         add_data_args.extend(["--add-data", f"{icon_path};assets"])
-
     if ui_path.exists():
         add_data_args.extend(["--add-data", f"{ui_path};gui"])
 
     args: list[str] = [
         str(gui_entry),
         "--name",
-        "SmartStitch",
+        app_name,
         "--noconfirm",
         "--noconsole",
         "--clean",
         "--onedir",
+        "--distpath",
+        str(dist_dir),
+        "--workpath",
+        str(work_dir),
+        "--specpath",
+        str(work_dir),
     ]
 
     args.extend(add_data_args)
@@ -45,7 +65,37 @@ def main() -> None:
     if icon_path.exists():
         args.extend(["--icon", str(icon_path)])
 
-    pyinstaller_run(args)
+    print("[Build] Starting PyInstaller build...")
+    print(f"[Build] Entry:   {gui_entry}")
+    print(f"[Build] Dist:    {dist_dir}")
+    print(f"[Build] Workdir: {work_dir}")
+
+    try:
+        pyinstaller_run(args)
+    except SystemExit as exc:  # PyInstaller may call sys.exit
+        code = int(getattr(exc, "code", 1) or 0)
+        if code != 0:
+            print(f"[Build] PyInstaller failed with exit code {code}.")
+            sys.exit(code)
+
+    # Clean up intermediate build artifacts
+    if work_dir.exists():
+        print(f"[Build] Removing temporary work directory: {work_dir}")
+        shutil.rmtree(work_dir, ignore_errors=True)
+
+    # Remove any stray .spec files in project root if present
+    for spec in project_root.glob("*.spec"):
+        try:
+            print(f"[Build] Removing stray spec file: {spec}")
+            spec.unlink()
+        except OSError:
+            pass
+
+    print("[Build] Done.")
+    if app_dist_dir.exists():
+        print(f"[Build] Final application folder: {app_dist_dir}")
+    else:
+        print("[Build] Warning: expected dist folder not found. Check PyInstaller output.")
 
 
 if __name__ == "__main__":

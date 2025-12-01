@@ -5,6 +5,7 @@ from .image_handler import ImageHandler
 from .image_manipulator import ImageManipulator
 from .postprocess_runner import PostProcessRunner
 from .settings_handler import SettingsHandler
+from .advanced_psd_merger import AdvancedPsdMerger
 
 __all__ = [
     logFunc,
@@ -15,4 +16,5 @@ __all__ = [
     SettingsHandler,
     GlobalTracker,
     PostProcessRunner,
+    AdvancedPsdMerger,
 ]

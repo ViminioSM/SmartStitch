@@ -34,7 +34,10 @@ class GuiStitchProcess:
         project_root = os.path.dirname(os.path.dirname(__file__))
         comiczip_script = os.path.join(project_root, "scripts", "comiczip.py")
         input_path = kwargs.get("input_path", "")
-        output_path = kwargs.get("input_path", "")
+        output_path = kwargs.get("output_path", "")
+        psd_first_layer_only = kwargs.get("psd_first_layer_only", False)
+        disable_postprocess = kwargs.get("disable_postprocess", False)
+        disable_comiczip = kwargs.get("disable_comiczip", False)
         status_func = kwargs.get("status_func", print)
         console_func = kwargs.get("console_func", print)
         step_percentages = {
@@ -46,7 +49,8 @@ class GuiStitchProcess:
             "save": 30.0,
             "postprocess": 20.0,
         }
-        has_postprocess = settings.load("run_postprocess")
+        has_postprocess = settings.load("run_postprocess") and not disable_postprocess
+        run_comiczip = settings.load("run_comiczip") and not disable_comiczip
         if not has_postprocess:
             step_percentages["save"] = 50.0
 
@@ -54,7 +58,14 @@ class GuiStitchProcess:
         start_time = time()
         percentage = 0.0
         status_func(percentage, 'Exploring input directory for working directories')
-        input_dirs = explorer.run(input=input_path, output_path=output_path)
+
+        # Respect a custom output_path when provided; otherwise fall back
+        # to the default behavior in DirectoryExplorer (input + suffix).
+        explorer_kwargs: dict[str, str] = {}
+        if output_path:
+            explorer_kwargs["output"] = output_path
+
+        input_dirs = explorer.run(input=input_path, **explorer_kwargs)
         input_dirs_count = len(input_dirs)
         status_func(
             percentage,
@@ -71,7 +82,7 @@ class GuiStitchProcess:
                     iteration=dir_iteration, count=input_dirs_count
                 ),
             )
-            imgs = img_handler.load(dir)
+            imgs = img_handler.load(dir, psd_first_layer_only=psd_first_layer_only)
             imgs = img_manipulator.resize(
                 imgs, settings.load("enforce_type"), settings.load("enforce_width")
             )
@@ -135,7 +146,7 @@ class GuiStitchProcess:
                     ),
                 )
             gc.collect()
-            if settings.load("run_postprocess"):
+            if has_postprocess:
                 status_func(
                     percentage,
                     'Working - [{iteration}/{count}] Running post process on output files'.format(
@@ -152,7 +163,7 @@ class GuiStitchProcess:
                 percentage += step_percentages.get("postprocess") / (
                     float(input_dirs_count) * float(img_count)
                 )
-            if settings.load("run_comiczip"):
+            if run_comiczip:
                 status_func(
                     percentage,
                     'Working - [{iteration}/{count}] Running ComicZip on output files'.format(

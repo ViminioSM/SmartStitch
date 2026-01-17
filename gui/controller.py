@@ -50,23 +50,201 @@ class FolderDropFilter(QObject):
 class ProcessThread(QThread):
     progress = Signal(int, str)
     postProcessConsole = Signal(str)
+    showWarning = Signal(str, str)  # title, message
+    showError = Signal(str, str)    # title, message
+    showInfo = Signal(str, str)     # title, message
 
     def __init__(self, parent):
         super(ProcessThread, self).__init__(parent)
+        self._input_path = ""
+        self._output_path = ""
+        self._advanced_index = 0
+        self._advanced_normal_dir = ""
+        self._advanced_edited_dir = ""
+        self._advanced_psd_source_dir = ""
+
+    def configure(
+        self,
+        input_path: str,
+        output_path: str,
+        advanced_index: int,
+        advanced_normal_dir: str,
+        advanced_edited_dir: str,
+        advanced_psd_source_dir: str,
+    ):
+        """Configure thread parameters before starting."""
+        self._input_path = input_path
+        self._output_path = output_path
+        self._advanced_index = advanced_index
+        self._advanced_normal_dir = advanced_normal_dir
+        self._advanced_edited_dir = advanced_edited_dir
+        self._advanced_psd_source_dir = advanced_psd_source_dir
 
     def run(self):
         process = GuiStitchProcess()
-        input_path = (MainWindow.inputField.text() or "").strip()
-        output_path = (MainWindow.outputField.text() or "").strip()
 
         # If Basic input is configured, run the standard stitching process.
-        if input_path:
+        if self._input_path:
             process.run_with_error_msgs(
-                input_path=input_path,
-                output_path=output_path,
+                input_path=self._input_path,
+                output_path=self._output_path,
                 status_func=self.progress.emit,
                 console_func=self.postProcessConsole.emit,
             )
+
+        # Run Advanced pipeline in the same thread
+        self._run_advanced_pipeline(process)
+
+    def _run_advanced_pipeline(self, process: GuiStitchProcess):
+        """Run Advanced tasks in the worker thread.
+
+        This method orchestrates the Advanced workflows after the main
+        (Basic) stitching process, according to the selected source type.
+        """
+        # --- Mode 0: Two folders (Normal + Edited) ---
+        if self._advanced_index == 0:
+            normal_dir = self._advanced_normal_dir
+            edited_dir = self._advanced_edited_dir
+
+            if not normal_dir and not edited_dir:
+                # Nothing configured in Advanced; silently skip.
+                return
+
+            if not normal_dir or not os.path.isdir(normal_dir):
+                self.showWarning.emit(
+                    "Advanced PSD Merge",
+                    "Please select a valid 'Normal layer' folder.",
+                )
+                return
+            if not edited_dir or not os.path.isdir(edited_dir):
+                self.showWarning.emit(
+                    "Advanced PSD Merge",
+                    "Please select a valid 'Edited layer' folder.",
+                )
+                return
+
+            self.progress.emit(0, "Working - Running Advanced PSD merge (two folders)")
+            
+            merger = AdvancedPsdMerger(console_func=self.postProcessConsole.emit)
+            try:
+                created = merger.merge_folders_to_psd(
+                    normal_dir,
+                    edited_dir,
+                )
+                self.progress.emit(100, "Idle - Advanced PSD merge (two folders) completed")
+                self.showInfo.emit(
+                    "Advanced PSD Merge",
+                    f"Finished. Created {created} PSD file(s).",
+                )
+            except Exception as exc:
+                self.showError.emit(
+                    "Advanced PSD Merge",
+                    f"An error occurred while merging to PSD: {exc}",
+                )
+            return
+
+        # --- Mode 1: PSD source (folder of PSDs) ---
+        if self._advanced_index == 1:
+            psd_source_dir = self._advanced_psd_source_dir
+            if not psd_source_dir:
+                return
+            if not os.path.isdir(psd_source_dir):
+                self.showWarning.emit(
+                    "Advanced PSD Source",
+                    "Please select a valid PSD source folder.",
+                )
+                return
+
+            edited_dir = psd_source_dir + " [Edited]"
+            original_dir = psd_source_dir + " [Original]"
+            merged_dir = psd_source_dir + " [Merged]"
+
+            self.postProcessConsole.emit(
+                f"[Advanced] PSD source mode enabled. Source: {psd_source_dir}"
+            )
+            self.postProcessConsole.emit(f"[Advanced] Edited output folder: {edited_dir}")
+            self.postProcessConsole.emit(f"[Advanced] Original output folder: {original_dir}")
+            self.postProcessConsole.emit(f"[Advanced] Merged output folder: {merged_dir}")
+
+            try:
+                self.progress.emit(0, "Working - Advanced PSD source (Edited pass)")
+                process.run_with_error_msgs(
+                    input_path=psd_source_dir,
+                    output_path=edited_dir,
+                    postprocess_path=edited_dir + POSTPROCESS_SUFFIX,
+                    status_func=self.progress.emit,
+                    console_func=self.postProcessConsole.emit,
+                    disable_comiczip=True,
+                )
+
+                self.progress.emit(0, "Working - Advanced PSD source (Original pass)")
+                process.run_with_error_msgs(
+                    input_path=psd_source_dir,
+                    output_path=original_dir,
+                    status_func=self.progress.emit,
+                    console_func=self.postProcessConsole.emit,
+                    psd_first_layer_only=True,
+                    disable_postprocess=True,
+                    disable_comiczip=True,
+                )
+            except Exception as exc:
+                self.showError.emit(
+                    "Advanced PSD Source",
+                    f"An error occurred while running the PSD source pipeline: {exc}",
+                )
+                return
+
+            # Merge [Original] and [Edited]/[Processed] into [Merged]
+            thread_settings = SettingsHandler()
+            has_postprocess = thread_settings.load("run_postprocess")
+            merge_edited_source = (
+                edited_dir + POSTPROCESS_SUFFIX if has_postprocess else edited_dir
+            )
+            self.progress.emit(50, "Working - Advanced PSD merge (Merged folder)")
+
+            merger = AdvancedPsdMerger(console_func=self.postProcessConsole.emit)
+            try:
+                created = merger.merge_folders_to_psd(
+                    normal_dir=original_dir,
+                    edited_dir=merge_edited_source,
+                    output_dir=merged_dir,
+                )
+            except Exception as exc:
+                self.showError.emit(
+                    "Advanced PSD Merge",
+                    f"An error occurred while merging PSD folders: {exc}",
+                )
+                return
+
+            # Optionally run ComicZip
+            if thread_settings.load("run_comiczip"):
+                project_root = os.path.dirname(os.path.dirname(__file__))
+                comiczip_script = os.path.join(project_root, "scripts", "comiczip.py")
+
+                workdir = WorkDirectory(
+                    merged_dir,
+                    merged_dir,
+                    merged_dir + POSTPROCESS_SUFFIX,
+                )
+                runner = PostProcessRunner()
+                try:
+                    runner.run(
+                        workdirectory=workdir,
+                        postprocess_app="python",
+                        postprocess_args=f"{comiczip_script} -i [stitched] -o [processed]",
+                        console_func=self.postProcessConsole.emit,
+                    )
+                except Exception as exc:
+                    self.showError.emit(
+                        "Advanced ComicZip",
+                        f"An error occurred while running ComicZip on merged folder: {exc}",
+                    )
+
+            self.showInfo.emit(
+                "Advanced PSD Merge",
+                f"PSD source workflow completed. Created {created} merged PSD file(s) in:\n{merged_dir}",
+            )
+            self.progress.emit(100, "Idle - Advanced PSD source workflow completed")
 
 
 def initialize_gui():
@@ -105,8 +283,9 @@ def initialize_gui():
     processThread = ProcessThread(MainWindow)
     processThread.progress.connect(update_process_progress)
     processThread.postProcessConsole.connect(update_postprocess_console)
-    # When the main process thread finishes, optionally run Advanced tasks
-    processThread.finished.connect(run_advanced_pipeline)
+    processThread.showWarning.connect(show_warning_dialog)
+    processThread.showError.connect(show_error_dialog)
+    processThread.showInfo.connect(show_info_dialog)
     # Show Window
     MainWindow.show()
 
@@ -450,169 +629,6 @@ def advanced_source_type_changed():
     MainWindow.browseAdvancedPsdSourceButton.setHidden(not psd_mode)
 
 
-def run_advanced_pipeline():
-    """Run Advanced tasks automatically after the main process.
-
-    This function orchestrates the Advanced workflows after the main
-    (Basic) stitching process, according to the selected source type:
-
-    - Two folders (Normal + Edited):
-      merge matching files from the two folders into 2-layer PSDs.
-
-    - PSD source (folder of PSDs):
-      1) Run a full stitching pass on the PSDs to ``[Edited]``.
-      2) Run a second pass using only the first PSD layer to
-         ``[Original]``.
-      3) Merge ``[Original]`` and ``[Edited]`` into final 2-layer PSDs
-         in ``[Merged]``.
-    """
-    # Determine selected source type.
-    index = MainWindow.advancedSourceTypeDropdown.currentIndex()
-
-    # --- Mode 0: Two folders (Normal + Edited) ---
-    if index == 0:
-        # Reuse the existing two-folder merge behavior, but only if the
-        # user configured both folders.
-        normal_dir = (MainWindow.advancedNormalField.text() or "").strip()
-        edited_dir = (MainWindow.advancedEditedField.text() or "").strip()
-
-        if not normal_dir and not edited_dir:
-            # Nothing configured in Advanced; silently skip.
-            return
-
-        # Show that Advanced work is running and reset the progress bar
-        # so it does not stay at 100% while PSDs are still being merged.
-        update_process_progress(0, "Working - Running Advanced PSD merge (two folders)")
-        run_advanced_merge()
-        update_process_progress(100, "Idle - Advanced PSD merge (two folders) completed")
-        return
-
-    # --- Mode 1: PSD source (folder of PSDs) ---
-    if index == 1:
-        psd_source_dir = (MainWindow.advancedPsdSourceField.text() or "").strip()
-        if not psd_source_dir:
-            # No PSD source configured; nothing to do.
-            return
-        if not os.path.isdir(psd_source_dir):
-            QMessageBox.warning(
-                MainWindow,
-                "Advanced PSD Source",
-                "Please select a valid PSD source folder.",
-            )
-            return
-
-        edited_dir = psd_source_dir + " [Edited]"
-        original_dir = psd_source_dir + " [Original]"
-        merged_dir = psd_source_dir + " [Merged]"
-
-        # Log the planned workflow to the console.
-        MainWindow.processConsoleField.append(
-            f"[Advanced] PSD source mode enabled. Source: {psd_source_dir}"
-        )
-        MainWindow.processConsoleField.append(
-            f"[Advanced] Edited output folder: {edited_dir}"
-        )
-        MainWindow.processConsoleField.append(
-            f"[Advanced] Original output folder: {original_dir}"
-        )
-        MainWindow.processConsoleField.append(
-            f"[Advanced] Merged output folder: {merged_dir}"
-        )
-
-        process = GuiStitchProcess()
-
-        try:
-            # Reset the progress bar so it reflects the Advanced PSD
-            # source workflow instead of staying at 100% from the
-            # previous Basic run.
-            update_process_progress(0, "Working - Advanced PSD source (Edited pass)")
-            # 1) Full PSD pass -> [Edited]
-            process.run_with_error_msgs(
-                input_path=psd_source_dir,
-                output_path=edited_dir,
-                status_func=update_process_progress,
-                console_func=update_postprocess_console,
-                disable_comiczip=True,
-            )
-
-            # 2) First-layer-only PSD pass -> [Original]
-            update_process_progress(0, "Working - Advanced PSD source (Original pass)")
-            process.run_with_error_msgs(
-                input_path=psd_source_dir,
-                output_path=original_dir,
-                status_func=update_process_progress,
-                console_func=update_postprocess_console,
-                psd_first_layer_only=True,
-                disable_postprocess=True,
-                disable_comiczip=True,
-            )
-        except Exception as exc:
-            QMessageBox.critical(
-                MainWindow,
-                "Advanced PSD Source",
-                f"An error occurred while running the PSD source pipeline: {exc}",
-            )
-            return
-
-        # 3) Merge [Original] and [Edited] into [Merged] using the
-        # AdvancedPsdMerger service.
-        update_process_progress(50, "Working - Advanced PSD merge (Merged folder)")
-        def console(message: str) -> None:
-            MainWindow.processConsoleField.append(message)
-
-        merger = AdvancedPsdMerger(console_func=console)
-        try:
-            created = merger.merge_folders_to_psd(
-                normal_dir=original_dir,
-                edited_dir=edited_dir,
-                output_dir=merged_dir,
-                yield_func=QApplication.processEvents,
-            )
-        except Exception as exc:
-            QMessageBox.critical(
-                MainWindow,
-                "Advanced PSD Merge",
-                f"An error occurred while merging PSD folders: {exc}",
-            )
-            return
-
-        # Optionally run ComicZip only on the merged folder when the
-        # Advanced PSD source workflow is used.
-        if settings.load("run_comiczip"):
-            project_root = os.path.dirname(os.path.dirname(__file__))
-            comiczip_script = os.path.join(project_root, "scripts", "comiczip.py")
-
-            workdir = WorkDirectory(
-                merged_dir,
-                merged_dir,
-                merged_dir + POSTPROCESS_SUFFIX,
-            )
-            runner = PostProcessRunner()
-            try:
-                runner.run(
-                    workdirectory=workdir,
-                    postprocess_app="python",
-                    postprocess_args=f"{comiczip_script} -i [stitched] -o [processed]",
-                    console_func=update_postprocess_console,
-                )
-            except Exception as exc:
-                QMessageBox.critical(
-                    MainWindow,
-                    "Advanced ComicZip",
-                    f"An error occurred while running ComicZip on merged folder: {exc}",
-                )
-
-        QMessageBox.information(
-            MainWindow,
-            "Advanced PSD Merge",
-            (
-                "PSD source workflow completed. Created "
-                f"{created} merged PSD file(s) in:\n{merged_dir}"
-            ),
-        )
-        update_process_progress(100, "Idle - Advanced PSD source workflow completed")
-
-
 def postprocess_app_changed():
     settings.save("postprocess_app", MainWindow.postProcessAppField.text())
 
@@ -625,10 +641,37 @@ def update_process_progress(percentage: int, message: str):
     MainWindow.statusField.setText(message)
     MainWindow.statusProgressBar.setValue(percentage)
 
+
 def update_postprocess_console(message: str):
     MainWindow.processConsoleField.append(message)
 
 
+def show_warning_dialog(title: str, message: str):
+    QMessageBox.warning(MainWindow, title, message)
+
+
+def show_error_dialog(title: str, message: str):
+    QMessageBox.critical(MainWindow, title, message)
+
+
+def show_info_dialog(title: str, message: str):
+    QMessageBox.information(MainWindow, title, message)
+
+
 def launch_process_async():
+    if processThread.isRunning():
+        return  # Prevent starting multiple times
+    
     MainWindow.processConsoleField.clear()
+    
+    # Configure thread with current UI values
+    processThread.configure(
+        input_path=(MainWindow.inputField.text() or "").strip(),
+        output_path=(MainWindow.outputField.text() or "").strip(),
+        advanced_index=MainWindow.advancedSourceTypeDropdown.currentIndex(),
+        advanced_normal_dir=(MainWindow.advancedNormalField.text() or "").strip(),
+        advanced_edited_dir=(MainWindow.advancedEditedField.text() or "").strip(),
+        advanced_psd_source_dir=(MainWindow.advancedPsdSourceField.text() or "").strip(),
+    )
+    
     processThread.start()

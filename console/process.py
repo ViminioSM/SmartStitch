@@ -68,27 +68,24 @@ class ConsoleStitchProcess:
             )
             imgs = img_manipulator.slice(combined_img, slice_points)
             print(
-                '[{iteration}/{count}] Saving output images to storage'.format(
+                '[{iteration}/{count}] Saving output images to storage (parallel)'.format(
                     iteration=dir_iteration, count=input_dirs_count
                 )
             )
-            img_iteration = 1
-            for img in imgs:
-                img_file_name = img_handler.save(
-                    dir,
-                    img,
-                    img_iteration,
-                    img_format=kwargs.get("output_type"),
-                    quality=kwargs.get('lossy_quality'),
+            img_count = len(imgs)
+            img_handler.save_all(
+                dir,
+                imgs,
+                img_format=kwargs.get("output_type"),
+                quality=kwargs.get('lossy_quality'),
+            )
+            print(
+                '[{iteration}/{count}] {count_imgs} images saved successfully'.format(
+                    iteration=dir_iteration,
+                    count=input_dirs_count,
+                    count_imgs=img_count,
                 )
-                img_iteration += 1
-                print(
-                    '[{iteration}/{count}] {file} has been successfully saved'.format(
-                        iteration=dir_iteration,
-                        count=input_dirs_count,
-                        file=img_file_name,
-                    )
-                )
+            )
             dir_iteration += 1
             gc.collect()
         end_time = time()

@@ -35,6 +35,7 @@ class GuiStitchProcess:
         comiczip_script = os.path.join(project_root, "scripts", "comiczip.py")
         input_path = kwargs.get("input_path", "")
         output_path = kwargs.get("output_path", "")
+        postprocess_path = kwargs.get("postprocess_path", "")
         psd_first_layer_only = kwargs.get("psd_first_layer_only", False)
         disable_postprocess = kwargs.get("disable_postprocess", False)
         disable_comiczip = kwargs.get("disable_comiczip", False)
@@ -64,6 +65,8 @@ class GuiStitchProcess:
         explorer_kwargs: dict[str, str] = {}
         if output_path:
             explorer_kwargs["output"] = output_path
+        if postprocess_path:
+            explorer_kwargs["postprocess"] = postprocess_path
 
         input_dirs = explorer.run(input=input_path, **explorer_kwargs)
         input_dirs_count = len(input_dirs)
@@ -119,32 +122,27 @@ class GuiStitchProcess:
             percentage += step_percentages.get("slice") / float(input_dirs_count)
             status_func(
                 percentage,
-                'Working - [{iteration}/{count}] Saving output images to storage'.format(
+                'Working - [{iteration}/{count}] Saving output images to storage (parallel)'.format(
                     iteration=dir_iteration, count=input_dirs_count
                 ),
             )
-            img_iteration = 1
             img_count = len(imgs)
-            for img in imgs:
-                img_file_name = img_handler.save(
-                    dir,
-                    img,
-                    img_iteration,
-                    img_format=settings.load("output_type"),
-                    quality=settings.load("lossy_quality"),
-                )
-                img_iteration += 1
-                percentage += step_percentages.get("save") / (
-                    float(input_dirs_count) * float(img_count)
-                )
-                status_func(
-                    percentage,
-                    'Working - [{iteration}/{count}] {file} has been successfully saved'.format(
-                        iteration=dir_iteration,
-                        count=input_dirs_count,
-                        file=img_file_name,
-                    ),
-                )
+            # Use parallel save_all for better performance
+            img_handler.save_all(
+                dir,
+                imgs,
+                img_format=settings.load("output_type"),
+                quality=settings.load("lossy_quality"),
+            )
+            percentage += step_percentages.get("save") / float(input_dirs_count)
+            status_func(
+                percentage,
+                'Working - [{iteration}/{count}] {count_imgs} images saved successfully'.format(
+                    iteration=dir_iteration,
+                    count=input_dirs_count,
+                    count_imgs=img_count,
+                ),
+            )
             gc.collect()
             if has_postprocess:
                 status_func(
@@ -160,9 +158,7 @@ class GuiStitchProcess:
                     postprocess_args=settings.load("postprocess_args"),
                     console_func=console_func,
                 )
-                percentage += step_percentages.get("postprocess") / (
-                    float(input_dirs_count) * float(img_count)
-                )
+                percentage += step_percentages.get("postprocess") / float(input_dirs_count)
             if run_comiczip:
                 status_func(
                     percentage,
